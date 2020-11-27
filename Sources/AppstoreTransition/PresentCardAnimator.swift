@@ -8,23 +8,7 @@
 
 import UIKit
 
-extension UIViewController {
-    
-    func cardsViewController() -> CardsViewController? {
-        if let viewController = self as? CardsViewController {
-            return viewController
-        } else if let viewController = self as? UITabBarController {
-            return viewController.selectedViewController?.cardsViewController()
-        } else if let viewController = self as? UINavigationController {
-            return viewController.topViewController?.cardsViewController()
-        }
-        
-        return nil
-    }
-    
-}
-
-final class PresentCardAnimator: NSObject, UIViewControllerAnimatedTransitioning {
+final class PresentCardAnimator: CardAnimator {
     
     private let params: Params
     
@@ -62,17 +46,21 @@ final class PresentCardAnimator: NSObject, UIViewControllerAnimatedTransitioning
         return UIViewPropertyAnimator(duration: duration, timingParameters: springTiming)
     }
     
-    func transitionDuration(using transitionContext: UIViewControllerContextTransitioning?) -> TimeInterval {
+    override func transitionDuration(using transitionContext: UIViewControllerContextTransitioning?) -> TimeInterval {
         // 1.
         return presentAnimationDuration
     }
     
-    func animateTransition(using transitionContext: UIViewControllerContextTransitioning) {
+    override func animateTransition(using transitionContext: UIViewControllerContextTransitioning) {
         // 2.
+        guard let toViewController = transitionContext.viewController(forKey: .to),
+              let cardDetailViewController = cardDetailForController(toViewController) else { return }
+        
         transitionDriver = PresentCardTransitionDriver(params: params,
                                                        transitionContext: transitionContext,
+                                                       cardDetailViewController: cardDetailViewController,
                                                        baseAnimator: springAnimator)
-        interruptibleAnimator(using: transitionContext).startAnimation()
+        transitionDriver!.animator.startAnimation()
     }
     
     func animationEnded(_ transitionCompleted: Bool) {
@@ -84,22 +72,25 @@ final class PresentCardAnimator: NSObject, UIViewControllerAnimatedTransitioning
         // 3.
         return transitionDriver!.animator
     }
+    
 }
 
 final class PresentCardTransitionDriver {
+    
     let animator: UIViewPropertyAnimator
-    init(params: PresentCardAnimator.Params, transitionContext: UIViewControllerContextTransitioning, baseAnimator: UIViewPropertyAnimator) {
+    
+    init(params: PresentCardAnimator.Params,
+         transitionContext: UIViewControllerContextTransitioning,
+         cardDetailViewController: CardDetailViewController,
+         baseAnimator: UIViewPropertyAnimator) {
+        
         let ctx = transitionContext
-        let container = ctx.containerView
-        var fromViewController: CardsViewController! = ctx.viewController(forKey: .from)?.cardsViewController()
+        let containerView = ctx.containerView
+
+        let toViewController = ctx.viewController(forKey: .to)
         
-        let screens: (home: CardsViewController, cardDetail: CardDetailViewController) = (
-            fromViewController,
-            ctx.viewController(forKey: .to)! as! CardDetailViewController
-        )
-        
-        let cardDetailView = ctx.view(forKey: .to)!
-        cardDetailView.backgroundColor = .clear
+        let toView = ctx.view(forKey: .to)!
+        toView.backgroundColor = .clear
         let fromCardFrame = params.fromCardFrame
         
         // Temporary container view for animation
@@ -108,16 +99,16 @@ final class PresentCardTransitionDriver {
         if params.settings.isEnabledDebugAnimatingViews {
             animatedContainerView.layer.borderColor = UIColor.yellow.cgColor
             animatedContainerView.layer.borderWidth = 4
-            cardDetailView.layer.borderColor = UIColor.red.cgColor
-            cardDetailView.layer.borderWidth = 2
+            toView.layer.borderColor = UIColor.red.cgColor
+            toView.layer.borderWidth = 2
         }
-        container.addSubview(animatedContainerView)
+        containerView.addSubview(animatedContainerView)
         
         do /* Fix centerX/width/height of animated container to container */ {
             let animatedContainerConstraints = [
-                animatedContainerView.widthAnchor.constraint(equalToConstant: container.bounds.width - (params.settings.cardContainerInsets.left + params.settings.cardContainerInsets.right)),
-                animatedContainerView.heightAnchor.constraint(equalToConstant: container.bounds.height - (params.settings.cardContainerInsets.top + params.settings.cardContainerInsets.bottom)),
-                animatedContainerView.centerXAnchor.constraint(equalTo: container.centerXAnchor)
+                animatedContainerView.widthAnchor.constraint(equalToConstant: containerView.bounds.width - (params.settings.cardContainerInsets.left + params.settings.cardContainerInsets.right)),
+                animatedContainerView.heightAnchor.constraint(equalToConstant: containerView.bounds.height - (params.settings.cardContainerInsets.top + params.settings.cardContainerInsets.bottom)),
+                animatedContainerView.centerXAnchor.constraint(equalTo: containerView.centerXAnchor)
             ]
             NSLayoutConstraint.activate(animatedContainerConstraints)
         }
@@ -126,41 +117,41 @@ final class PresentCardTransitionDriver {
             switch params.settings.cardVerticalExpandingStyle {
             case .fromCenter:
                 return animatedContainerView.centerYAnchor.constraint(
-                    equalTo: container.centerYAnchor,
-                    constant: (fromCardFrame.height/2 + fromCardFrame.minY) - container.bounds.height/2
+                    equalTo: containerView.centerYAnchor,
+                    constant: (fromCardFrame.height/2 + fromCardFrame.minY) - containerView.bounds.height/2
                 )
             case .fromTop:
-                return animatedContainerView.topAnchor.constraint(equalTo: container.topAnchor, constant: fromCardFrame.minY + params.settings.cardContainerInsets.top)
+                return animatedContainerView.topAnchor.constraint(equalTo: containerView.topAnchor, constant: fromCardFrame.minY + params.settings.cardContainerInsets.top)
             }
             
         }()
         animatedContainerVerticalConstraint.isActive = true
         
-        animatedContainerView.addSubview(cardDetailView)
-        cardDetailView.translatesAutoresizingMaskIntoConstraints = false
+        animatedContainerView.addSubview(toView)
+        toView.translatesAutoresizingMaskIntoConstraints = false
         
-        let weirdCardToAnimatedContainerTopAnchor: NSLayoutConstraint
+//        let weirdCardToAnimatedContainerTopAnchor: NSLayoutConstraint
         
         do /* Pin top (or center Y) and center X of the card, in animated container view */ {
             let verticalAnchor: NSLayoutConstraint = {
                 switch params.settings.cardVerticalExpandingStyle {
                 case .fromCenter:
-                    return cardDetailView.centerYAnchor.constraint(equalTo: animatedContainerView.centerYAnchor)
+                    return toView.centerYAnchor.constraint(equalTo: animatedContainerView.centerYAnchor)
                 case .fromTop:
-                    return cardDetailView.topAnchor.constraint(equalTo: animatedContainerView.topAnchor)
+                    return toView.topAnchor.constraint(equalTo: animatedContainerView.topAnchor)
                 }
             }()
             let cardConstraints = [
                 verticalAnchor,
-                cardDetailView.centerXAnchor.constraint(equalTo: animatedContainerView.centerXAnchor),
+                toView.centerXAnchor.constraint(equalTo: animatedContainerView.centerXAnchor),
             ]
             NSLayoutConstraint.activate(cardConstraints)
         }
-        let cardWidthConstraint = cardDetailView.widthAnchor.constraint(equalToConstant: fromCardFrame.width - (params.settings.cardContainerInsets.left + params.settings.cardContainerInsets.right))
-        let cardHeightConstraint = cardDetailView.heightAnchor.constraint(equalToConstant: fromCardFrame.height - (params.settings.cardContainerInsets.top + params.settings.cardContainerInsets.bottom))
+        let cardWidthConstraint = toView.widthAnchor.constraint(equalToConstant: fromCardFrame.width - (params.settings.cardContainerInsets.left + params.settings.cardContainerInsets.right))
+        let cardHeightConstraint = toView.heightAnchor.constraint(equalToConstant: fromCardFrame.height - (params.settings.cardContainerInsets.top + params.settings.cardContainerInsets.bottom))
         NSLayoutConstraint.activate([cardWidthConstraint, cardHeightConstraint])
         
-        cardDetailView.layer.cornerRadius = params.settings.cardCornerRadius
+        toView.layer.cornerRadius = params.settings.cardCornerRadius
         
         // -------------------------------
         // Final preparation
@@ -168,51 +159,56 @@ final class PresentCardTransitionDriver {
         params.fromCell.isHidden = true
         params.fromCell.resetTransform()
         
-        let topTemporaryFix = screens.cardDetail.cardContentView.topAnchor.constraint(equalTo: cardDetailView.topAnchor, constant: 0)
+        let topTemporaryFix = cardDetailViewController.cardContentView.topAnchor.constraint(equalTo: cardDetailViewController.view.topAnchor, constant: 0)
         topTemporaryFix.isActive = params.settings.isEnabledWeirdTopInsetsFix
         
-        container.layoutIfNeeded()
+        containerView.layoutIfNeeded()
         
         // ------------------------------
         // 1. Animate container bouncing up
         // ------------------------------
         func animateContainerBouncingUp() {
             animatedContainerVerticalConstraint.constant = 0
-            container.layoutIfNeeded()
+            containerView.layoutIfNeeded()
         }
         
         // ------------------------------
         // 2. Animate cardDetail filling up the container
         // ------------------------------
         func animateCardDetailViewSizing() {
-            screens.cardDetail.didStartPresentAnimationProgress()
+            cardDetailViewController.didStartPresentAnimationProgress()
             
             cardWidthConstraint.constant = animatedContainerView.bounds.width + (params.settings.cardContainerInsets.left + params.settings.cardContainerInsets.right)
             cardHeightConstraint.constant = animatedContainerView.bounds.height + (params.settings.cardContainerInsets.top + params.settings.cardContainerInsets.bottom)
-            cardDetailView.layer.cornerRadius = 0
-            container.layoutIfNeeded()
+            toView.layer.cornerRadius = 0
+            
+            params.settings.additionalCardViewAnimations?(cardDetailViewController.cardContentView, true)
+            
+            containerView.layoutIfNeeded()
         }
         
         func completeEverything() {
             // Remove temporary `animatedContainerView`
-            animatedContainerView.removeConstraints(animatedContainerView.constraints)
+//            animatedContainerView.removeConstraints(animatedContainerView.constraints)
             animatedContainerView.removeFromSuperview()
             
             // Re-add to the top
-            container.addSubview(cardDetailView)
+            containerView.addSubview(toView)
             
-            cardDetailView.removeConstraints([topTemporaryFix, cardWidthConstraint, cardHeightConstraint])
+            toView.removeConstraints([topTemporaryFix, cardWidthConstraint, cardHeightConstraint])
             
-            cardDetailView.edges(to: container)
+//            cardDetailView.edges(to: container)
+            toView.translatesAutoresizingMaskIntoConstraints = true
+            toView.frame = toViewController.map { ctx.finalFrame(for: $0) } ?? containerView.bounds
             
             // No longer need the bottom constraint that pins bottom of card content to its root.
             //screens.cardDetail.cardBottomToRootBottomConstraint.isActive = false
-            screens.cardDetail.scrollView?.isScrollEnabled = true
+            cardDetailViewController.scrollView?.isScrollEnabled = true
             
             let success = !ctx.transitionWasCancelled
             ctx.completeTransition(success)
             
-            screens.cardDetail.didFinishPresentAnimationProgress()
+            cardDetailViewController.didFinishPresentAnimationProgress()
         }
         
         baseAnimator.addAnimations {

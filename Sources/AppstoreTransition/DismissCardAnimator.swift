@@ -8,7 +8,7 @@
 
 import UIKit
 
-final class DismissCardAnimator: NSObject, UIViewControllerAnimatedTransitioning {
+final class DismissCardAnimator: CardAnimator {
     
     struct Params {
         let fromCardFrame: CGRect
@@ -29,56 +29,52 @@ final class DismissCardAnimator: NSObject, UIViewControllerAnimatedTransitioning
         super.init()
     }
     
-    func transitionDuration(using transitionContext: UIViewControllerContextTransitioning?) -> TimeInterval {
+    override func transitionDuration(using transitionContext: UIViewControllerContextTransitioning?) -> TimeInterval {
         return params.settings.dismissalAnimationDuration
     }
     
-    func animateTransition(using transitionContext: UIViewControllerContextTransitioning) {
+    override func animateTransition(using transitionContext: UIViewControllerContextTransitioning) {
         let ctx = transitionContext
         let container = ctx.containerView
+                
+        guard let fromViewController = ctx.viewController(forKey: .from),
+              let cardDetailViewController = cardDetailForController(fromViewController) else { return }
         
-        var toViewController: CardsViewController! = ctx.viewController(forKey: .to)?.cardsViewController()
-        
-        let screens: (cardDetail: CardDetailViewController, home: CardsViewController) = (
-            ctx.viewController(forKey: .from)! as! CardDetailViewController,
-            toViewController
-        )
-        
-        let cardDetailView = ctx.view(forKey: .from)!
+        let fromView = ctx.view(forKey: .from)!
         
         let animatedContainerView = UIView()
         if params.settings.isEnabledDebugAnimatingViews {
             animatedContainerView.layer.borderColor = UIColor.yellow.cgColor
             animatedContainerView.layer.borderWidth = 4
-            cardDetailView.layer.borderColor = UIColor.red.cgColor
-            cardDetailView.layer.borderWidth = 2
+            fromView.layer.borderColor = UIColor.red.cgColor
+            fromView.layer.borderWidth = 2
         }
         animatedContainerView.translatesAutoresizingMaskIntoConstraints = false
-        cardDetailView.translatesAutoresizingMaskIntoConstraints = false
+        fromView.translatesAutoresizingMaskIntoConstraints = false
         
         container.removeConstraints(container.constraints)
         
         container.addSubview(animatedContainerView)
-        animatedContainerView.addSubview(cardDetailView)
+        animatedContainerView.addSubview(fromView)
         
         // Card fills inside animated container view
-        cardDetailView.edges(to: animatedContainerView)
+        fromView.edges(to: animatedContainerView)
         
         animatedContainerView.centerXAnchor.constraint(equalTo: container.centerXAnchor).isActive = true
         let animatedContainerTopConstraint = animatedContainerView.topAnchor.constraint(equalTo: container.topAnchor, constant: params.settings.cardContainerInsets.top)
-        let animatedContainerWidthConstraint = animatedContainerView.widthAnchor.constraint(equalToConstant: cardDetailView.frame.width - (params.settings.cardContainerInsets.left + params.settings.cardContainerInsets.right))
-        let animatedContainerHeightConstraint = animatedContainerView.heightAnchor.constraint(equalToConstant: cardDetailView.frame.height - (params.settings.cardContainerInsets.top + params.settings.cardContainerInsets.bottom))
+        let animatedContainerWidthConstraint = animatedContainerView.widthAnchor.constraint(equalToConstant: fromView.frame.width - (params.settings.cardContainerInsets.left + params.settings.cardContainerInsets.right))
+        let animatedContainerHeightConstraint = animatedContainerView.heightAnchor.constraint(equalToConstant: fromView.frame.height - (params.settings.cardContainerInsets.top + params.settings.cardContainerInsets.bottom))
         
         NSLayoutConstraint.activate([animatedContainerTopConstraint, animatedContainerWidthConstraint, animatedContainerHeightConstraint])
         
         // Fix weird top inset
-        let topTemporaryFix = screens.cardDetail.cardContentView.topAnchor.constraint(equalTo: cardDetailView.topAnchor)
+        let topTemporaryFix = cardDetailViewController.cardContentView.topAnchor.constraint(equalTo: fromView.topAnchor)
         topTemporaryFix.isActive = params.settings.isEnabledWeirdTopInsetsFix
         
         container.layoutIfNeeded()
         
         // Force card filling bottom
-        let stretchCardToFillBottom = screens.cardDetail.cardContentView.bottomAnchor.constraint(equalTo: cardDetailView.bottomAnchor)
+        let stretchCardToFillBottom = cardDetailViewController.cardContentView.bottomAnchor.constraint(equalTo: fromView.bottomAnchor)
         // for tableview header required confilcts with autoresizing mask constraints
         stretchCardToFillBottom.priority = .defaultHigh
         
@@ -87,10 +83,13 @@ final class DismissCardAnimator: NSObject, UIViewControllerAnimatedTransitioning
             //screens.cardDetail.isFontStateHighlighted = false
             // Back to identity
             // NOTE: Animated container view in a way, helps us to not messing up `transform` with `AutoLayout` animation.
-            cardDetailView.transform = CGAffineTransform.identity
+            fromView.transform = CGAffineTransform.identity
             animatedContainerTopConstraint.constant = self.params.fromCardFrameWithoutTransform.minY + params.settings.cardContainerInsets.top
             animatedContainerWidthConstraint.constant = self.params.fromCardFrameWithoutTransform.width - (params.settings.cardContainerInsets.left + params.settings.cardContainerInsets.right)
             animatedContainerHeightConstraint.constant = self.params.fromCardFrameWithoutTransform.height - (params.settings.cardContainerInsets.top + params.settings.cardContainerInsets.bottom)
+            
+            params.settings.additionalCardViewAnimations?(cardDetailViewController.cardContentView, false)
+            
             container.layoutIfNeeded()
         }
         
@@ -99,7 +98,7 @@ final class DismissCardAnimator: NSObject, UIViewControllerAnimatedTransitioning
             animatedContainerView.removeConstraints(animatedContainerView.constraints)
             animatedContainerView.removeFromSuperview()
             if success {
-                cardDetailView.removeFromSuperview()
+                fromView.removeFromSuperview()
                 self.params.fromCell.isHidden = false
             } else {
                 //screens.cardDetail.isFontStateHighlighted = true
@@ -108,16 +107,18 @@ final class DismissCardAnimator: NSObject, UIViewControllerAnimatedTransitioning
                 topTemporaryFix.isActive = false
                 stretchCardToFillBottom.isActive = false
                 
-                cardDetailView.removeConstraint(topTemporaryFix)
-                cardDetailView.removeConstraint(stretchCardToFillBottom)
+                fromView.removeConstraint(topTemporaryFix)
+                fromView.removeConstraint(stretchCardToFillBottom)
                 
                 container.removeConstraints(container.constraints)
                 
-                container.addSubview(cardDetailView)
-                cardDetailView.edges(to: container)
+                container.addSubview(fromView)
+                fromView.edges(to: container)
             }
             ctx.completeTransition(success)
         }
+        
+        cardDetailViewController.didBeginDismissAnimation()
         
         UIView.animate(withDuration: transitionDuration(using: ctx), delay: 0, usingSpringWithDamping: 0.7, initialSpringVelocity: 0.0, options: [], animations: {
             animateCardViewBackToPlace()
@@ -128,7 +129,7 @@ final class DismissCardAnimator: NSObject, UIViewControllerAnimatedTransitioning
         UIView.animate(withDuration: transitionDuration(using: ctx) * 0.4) {
             //print("godam")
             //screens.cardDetail.scrollView.setContentOffset(self.params.settings.dismissalScrollViewContentOffset, animated: true)
-            screens.cardDetail.scrollView?.contentOffset = self.params.settings.dismissalScrollViewContentOffset
+            cardDetailViewController.scrollView?.contentOffset = self.params.settings.dismissalScrollViewContentOffset
         }
     }
 }

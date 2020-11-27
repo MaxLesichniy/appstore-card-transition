@@ -32,7 +32,7 @@ final class CardPresentationController: UIPresentationController {
         if let settings = settings {
             blurView.backgroundColor = settings.blurColor
             if settings.blurEnabled {
-                blurView.effect = UIBlurEffect(style: .light)
+                blurView.effect = UIBlurEffect(style: .regular)
             }
         }
         

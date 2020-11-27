@@ -20,7 +20,7 @@ public class TransitionSettings {
     public var cardVerticalExpandingStyle: CardVerticalExpandingStyle = .fromTop
     
     /// Without this, there'll be weird offset (probably from scrollView) that obscures the card content view of the cardDetailView.
-    public var isEnabledWeirdTopInsetsFix = true
+    public var isEnabledWeirdTopInsetsFix = false
     
     /// Swipe from bottom should also closes the detail screen.
     public var isEnabledBottomClose = false
@@ -43,6 +43,8 @@ public class TransitionSettings {
         /// Expanding card pinning at the center of animatingContainerView
         case fromCenter
     }
+    
+    public var additionalCardViewAnimations: ((UIView, Bool) -> Void)?
     
     public init() {
     }
