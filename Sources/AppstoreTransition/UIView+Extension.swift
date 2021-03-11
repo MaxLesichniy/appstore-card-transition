@@ -17,7 +17,7 @@ extension UIView {
             self.rightAnchor.constraint(equalTo: view.rightAnchor, constant: right),
             self.topAnchor.constraint(equalTo: view.topAnchor, constant: top),
             self.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: bottom)
-            ])
+        ])
     }
     
 }

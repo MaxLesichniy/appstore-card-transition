@@ -10,9 +10,18 @@ import UIKit
 
 final class CardPresentationController: UIPresentationController {
     
-    private lazy var blurView = UIVisualEffectView(effect: nil)
+    private lazy var visualEffectView = UIVisualEffectView(effect: nil)
+    private lazy var dissmisTapGestureRecognizer: UITapGestureRecognizer = {
+        let gesture = UITapGestureRecognizer(target: self, action: #selector(dismissTapHandle(_:)))
+        return gesture
+    }()
     
-    var settings: TransitionSettings?
+    var settings: CardTransitionSettings?
+    
+    init(presentedViewController: UIViewController, presenting presentingViewController: UIViewController?, settings: CardTransitionSettings?) {
+        super.init(presentedViewController: presentedViewController, presenting: presentingViewController)
+        self.settings = settings
+    }
     
     // Default is false.
     // And also means you can access only `.to` when present, and `.from` when dismiss (e.g., can touch only 'presented view').
@@ -23,25 +32,52 @@ final class CardPresentationController: UIPresentationController {
         return false
     }
     
+    override var shouldPresentInFullscreen: Bool {
+        return false
+    }
+    
+    override var frameOfPresentedViewInContainerView: CGRect {
+        guard let containerView = containerView else {
+            return super.frameOfPresentedViewInContainerView
+        }
+        
+        if traitCollection.horizontalSizeClass == .regular && traitCollection.verticalSizeClass == .regular {
+            let minEdge = min(containerView.bounds.width, containerView.bounds.height)
+            let size = CGSize(width: minEdge * 0.8, height: containerView.bounds.height * 0.9)
+            let frame = CGRect(origin: CGPoint(x: (containerView.frame.width - size.width)/2,
+                                               y: (containerView.frame.height - size.height)/2),
+                               size: size)
+            return frame
+        }
+        
+        return super.frameOfPresentedViewInContainerView
+    }
+    
+    override func containerViewDidLayoutSubviews() {
+        super.containerViewDidLayoutSubviews()
+        
+        visualEffectView.frame = containerView!.bounds
+        presentedView?.frame = frameOfPresentedViewInContainerView
+    }
+    
     override func presentationTransitionWillBegin() {
         let container = containerView!
-        blurView.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(blurView)
-        blurView.edges(to: container)
-        blurView.alpha = 0.0
+        container.addSubview(visualEffectView)
+        
+        visualEffectView.addGestureRecognizer(dissmisTapGestureRecognizer)
+        
+        visualEffectView.alpha = 0.0
         if let settings = settings {
-            blurView.backgroundColor = settings.blurColor
-            if settings.blurEnabled {
-                blurView.effect = UIBlurEffect(style: .regular)
-            }
+            visualEffectView.backgroundColor = settings.visualEffectColor
+            visualEffectView.effect = settings.visualEffect
         }
         
         presentingViewController.beginAppearanceTransition(false, animated: false)
         presentedViewController.transitionCoordinator!.animate(alongsideTransition: { (ctx) in
-            UIView.animate(withDuration: 0.5, animations: {
-                self.blurView.alpha = self.settings?.blurAlpha ?? 1.0
-            })
-        }) { (ctx) in }
+            UIView.animate(withDuration: ctx.transitionDuration * 0.5) {
+                self.visualEffectView.alpha = self.settings?.visualEffectAlpha ?? 1.0
+            }
+        }, completion: nil)
     }
     
     override func presentationTransitionDidEnd(_ completed: Bool) {
@@ -51,14 +87,23 @@ final class CardPresentationController: UIPresentationController {
     override func dismissalTransitionWillBegin() {
         presentingViewController.beginAppearanceTransition(true, animated: true)
         presentedViewController.transitionCoordinator!.animate(alongsideTransition: { (ctx) in
-            self.blurView.alpha = 0.0
+            UIView.animate(withDuration: ctx.transitionDuration * 0.3, delay: ctx.transitionDuration * 0.2, options: []) {
+                self.visualEffectView.alpha = 0.0
+            }
         }, completion: nil)
     }
     
     override func dismissalTransitionDidEnd(_ completed: Bool) {
         presentingViewController.endAppearanceTransition()
         if completed {
-            blurView.removeFromSuperview()
+            visualEffectView.removeFromSuperview()
         }
     }
+    
+    // MARK: -
+    
+    @objc fileprivate func dismissTapHandle(_ sender: UITapGestureRecognizer) {
+        presentedViewController.dismiss(animated: true, completion: nil)
+    }
+    
 }

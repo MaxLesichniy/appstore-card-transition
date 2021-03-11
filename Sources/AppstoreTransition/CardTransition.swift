@@ -8,14 +8,22 @@
 
 import UIKit
 
-public class TransitionSettings {
+public class CardTransitionSettings {
     public var cardHighlightedFactor: CGFloat = 0.96
     public var cardCornerRadius: CGFloat = 8
+    public var detailsCornerRadius: CGFloat = 16
     public var dismissalAnimationDuration = 0.6
     public var dismissalScrollViewContentOffset = CGPoint.zero
-    public var blurEnabled = true
-    public var blurColor = UIColor.clear
-    public var blurAlpha: CGFloat = 1.0
+    public var visualEffect: UIVisualEffect? = UIBlurEffect(style: .regular)
+    public var visualEffectColor: UIColor = .clear
+    public var visualEffectAlpha: CGFloat = 1.0
+    
+    public enum CardVerticalExpandingStyle {
+        /// Expanding card pinning at the top of animatingContainerView
+        case fromTop
+        /// Expanding card pinning at the center of animatingContainerView
+        case fromCenter
+    }
     
     public var cardVerticalExpandingStyle: CardVerticalExpandingStyle = .fromTop
     
@@ -36,36 +44,20 @@ public class TransitionSettings {
     
     public var cardContainerInsets: UIEdgeInsets = UIEdgeInsets(top: 8.0, left: 8.0, bottom: 8.0, right: 8.0)
     
-    public enum CardVerticalExpandingStyle {
-        /// Expanding card pinning at the top of animatingContainerView
-        case fromTop
-        
-        /// Expanding card pinning at the center of animatingContainerView
-        case fromCenter
-    }
-    
     public var additionalCardViewAnimations: ((UIView, Bool) -> Void)?
     
     public init() {
+        
     }
     
 }
 
-public final class CardTransition: NSObject, UIViewControllerTransitioningDelegate {
-    
-    struct Params {
-        let fromCardFrame: CGRect
-        let fromCardFrameWithoutTransform: CGRect
-        let fromCell: CardCollectionViewCell
-        let settings: TransitionSettings
-    }
+public final class CardTransition: NSObject {
     
     let cell: CardCollectionViewCell
-    let settings: TransitionSettings
-    
-    public var updatedCardFrame: (()->(CGRect))?
-    
-    public init(cell: CardCollectionViewCell, settings: TransitionSettings = TransitionSettings()) {
+    let settings: CardTransitionSettings
+        
+    public init(cell: CardCollectionViewCell, settings: CardTransitionSettings = .init()) {
         // Freeze highlighted state (or else it will bounce back)
         cell.freezeAnimations()
         
@@ -75,8 +67,7 @@ public final class CardTransition: NSObject, UIViewControllerTransitioningDelega
         super.init()
     }
     
-    private func params() -> Params {
-        
+    private func params() -> CardAnimator.Params {
         // Get current frame on screen
         let currentCellFrame = cell.layer.presentation()!.frame
         
@@ -95,36 +86,23 @@ public final class CardTransition: NSObject, UIViewControllerTransitioningDelega
             )
             return cell.superview!.convert(r, to: nil)
         }()
-        
-        let params = CardTransition.Params(fromCardFrame: cardPresentationFrameOnScreen,
-                                           fromCardFrameWithoutTransform: cardFrameWithoutTransform,
-                                           fromCell: cell,
-                                           settings: settings)
-        
-        return params
+                
+        return CardAnimator.Params(fromCardFrame: cardPresentationFrameOnScreen,
+                                   fromCardFrameWithoutTransform: cardFrameWithoutTransform,
+                                   fromCell: cell,
+                                   settings: settings)
     }
     
+}
+
+extension CardTransition: UIViewControllerTransitioningDelegate {
+    
     public func animationController(forPresented presented: UIViewController, presenting: UIViewController, source: UIViewController) -> UIViewControllerAnimatedTransitioning? {
-        let baseParams = params()
-        
-        let params = PresentCardAnimator.Params.init(
-            fromCardFrame: baseParams.fromCardFrame,
-            fromCell: baseParams.fromCell,
-            settings: baseParams.settings
-        )
-        return PresentCardAnimator(params: params)
+        return PresentCardAnimator(params: params())
     }
     
     public func animationController(forDismissed dismissed: UIViewController) -> UIViewControllerAnimatedTransitioning? {
-        let baseParams = params()
-        
-        let params = DismissCardAnimator.Params.init(
-            fromCardFrame: baseParams.fromCardFrame,
-            fromCardFrameWithoutTransform: baseParams.fromCardFrameWithoutTransform,
-            fromCell: baseParams.fromCell,
-            settings: baseParams.settings
-        )
-        return DismissCardAnimator(params: params)
+        return DismissCardAnimator(params: params())
     }
     
     public func interactionControllerForPresentation(using animator: UIViewControllerAnimatedTransitioning) -> UIViewControllerInteractiveTransitioning? {
@@ -137,9 +115,7 @@ public final class CardTransition: NSObject, UIViewControllerTransitioningDelega
     
     // IMPORTANT: Must set modalPresentationStyle to `.custom` for this to be used.
     public func presentationController(forPresented presented: UIViewController, presenting: UIViewController?, source: UIViewController) -> UIPresentationController? {
-        let cardPresentationController = CardPresentationController(presentedViewController: presented, presenting: presenting)
-        cardPresentationController.settings = settings
-        
-        return cardPresentationController
+        return CardPresentationController(presentedViewController: presented, presenting: presenting, settings: settings)
     }
+    
 }

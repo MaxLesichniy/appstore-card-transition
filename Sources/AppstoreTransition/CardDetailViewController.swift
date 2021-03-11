@@ -20,7 +20,7 @@ public protocol CardsViewController {
 public protocol CardDetailViewController: UIViewController {
     var cardContentView: UIView { get }
     var scrollView: UIScrollView? { get }
-    var settings: TransitionSettings { get set }
+    var settings: CardTransitionSettings { get set }
     var dismissHandler: CardDismissHandler { get }
     
     func didStartPresentAnimationProgress()
@@ -35,7 +35,7 @@ public protocol CardDetailViewController: UIViewController {
 
 public extension CardDetailViewController {
     
-    var dismissHandler:CardDismissHandler {
+    var dismissHandler: CardDismissHandler {
         get {
             if let settings = objc_getAssociatedObject(self, &AssociatedKeys.dismissHandlerKey) as? CardDismissHandler {
                 return settings
@@ -49,12 +49,12 @@ public extension CardDetailViewController {
         }
     }
     
-    var settings:TransitionSettings {
+    var settings: CardTransitionSettings {
         get {
-            if let settings = objc_getAssociatedObject(self, &AssociatedKeys.settingsKey) as? TransitionSettings {
+            if let settings = objc_getAssociatedObject(self, &AssociatedKeys.settingsKey) as? CardTransitionSettings {
                 return settings
             } else {
-                self.settings = TransitionSettings()
+                self.settings = CardTransitionSettings()
                 return settings
             }
         }

@@ -9,6 +9,19 @@ import UIKit
 
 class CardAnimator: NSObject, UIViewControllerAnimatedTransitioning {
     
+    struct Params {
+        let fromCardFrame: CGRect
+        let fromCardFrameWithoutTransform: CGRect
+        let fromCell: CardCollectionViewCell
+        let settings: CardTransitionSettings
+    }
+    
+    let params: Params
+
+    init(params: Params) {
+        self.params = params
+    }
+    
     func transitionDuration(using transitionContext: UIViewControllerContextTransitioning?) -> TimeInterval {
         return 0
     }
@@ -18,10 +31,6 @@ class CardAnimator: NSObject, UIViewControllerAnimatedTransitioning {
     }
     
     func cardsForController(_ controller: UIViewController) -> CardsViewController? {
-//        if let sourceProvider = controller as? ZoomTransitionSourceProvider,
-//           let source = sourceProvider.zoomTransitionSource {
-//            return source
-//        }
         if let comform = controller as? CardsViewController {
             return comform
         }
@@ -34,10 +43,6 @@ class CardAnimator: NSObject, UIViewControllerAnimatedTransitioning {
     }
     
     func cardDetailForController(_ controller: UIViewController) -> CardDetailViewController? {
-//        if let destinationProvider = controller as? ZoomTransitionDestinationProvider,
-//           let destination = destinationProvider.zoomTransitionDestination {
-//            return destination
-//        }
         if let comform = controller as? CardDetailViewController {
             return comform
         }

@@ -16,17 +16,16 @@ private struct AssociatedKeys {
 public protocol CardCollectionViewCell: UIView {
     var cardContentView: UIView { get }
     var disabledHighlightedAnimation: Bool { get set }
-    var settings: TransitionSettings { get }
+    var settings: CardTransitionSettings { get }
     
     func resetTransform()
     func freezeAnimations()
     func unfreezeAnimations()
-    
 }
 
 public extension CardCollectionViewCell {
     
-    var disabledHighlightedAnimation:Bool {
+    var disabledHighlightedAnimation: Bool {
         get {
             if let disabledHighlight = objc_getAssociatedObject(self, &AssociatedKeys.disabledHighlightedAnimationKey) as? Bool {
                 return disabledHighlight
@@ -40,12 +39,12 @@ public extension CardCollectionViewCell {
         }
     }
     
-    var settings:TransitionSettings {
+    var settings: CardTransitionSettings {
         get {
-            if let settings = objc_getAssociatedObject(self, &AssociatedKeys.settingsKey) as? TransitionSettings {
+            if let settings = objc_getAssociatedObject(self, &AssociatedKeys.settingsKey) as? CardTransitionSettings {
                 return settings
             } else {
-                self.settings = TransitionSettings()
+                self.settings = CardTransitionSettings()
                 return settings
             }
         }
@@ -67,29 +66,15 @@ public extension CardCollectionViewCell {
         disabledHighlightedAnimation = false
     }
     
-    func animate(isHighlighted: Bool, completion: ((Bool) -> Void)?=nil) {
+    func animate(isHighlighted: Bool, completion: ((Bool) -> Void)? = nil) {
         if disabledHighlightedAnimation {
             return
         }
         let animationOptions: UIView.AnimationOptions = settings.isEnabledAllowsUserInteractionWhileHighlightingCard
             ? [.allowUserInteraction] : []
-        if isHighlighted {
-            UIView.animate(withDuration: 0.5,
-                           delay: 0,
-                           usingSpringWithDamping: 1,
-                           initialSpringVelocity: 0,
-                           options: animationOptions, animations: {
-                            self.transform = .init(scaleX: self.settings.cardHighlightedFactor, y: self.settings.cardHighlightedFactor)
-            }, completion: completion)
-        } else {
-            UIView.animate(withDuration: 0.5,
-                           delay: 0,
-                           usingSpringWithDamping: 1,
-                           initialSpringVelocity: 0,
-                           options: animationOptions, animations: {
-                            self.transform = .identity
-            }, completion: completion)
-        }
+        UIView.animate(withDuration: 0.5, delay: 0, usingSpringWithDamping: 1, initialSpringVelocity: 0, options: animationOptions, animations: {
+            self.transform = isHighlighted ? CGAffineTransform(scaleX: self.settings.cardHighlightedFactor, y: self.settings.cardHighlightedFactor) : .identity
+        }, completion: completion)
     }
     
 }
